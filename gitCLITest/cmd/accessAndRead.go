@@ -5,6 +5,11 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
+	"fmt"
+
+	//"github.com/ibix16/gitCLITest/config"
+	"github.com/google/go-github/github"
 	"github.com/spf13/cobra"
 )
 
@@ -17,8 +22,46 @@ var accessAndReadCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		// hardcoded info: repo , file, owner
+		owner := "ibix16"
+		repo := "tester"
+		filePath := "VERSION_NUMBER"
+
+		err := accessAndRead(owner, repo, filePath)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
 
 	},
+}
+
+func accessAndRead(repoOwner, repoName, filePath string) error {
+	// Get the GitHub configuration
+	//githubConfig := config.GetGithubConfig()
+
+	//githubConfig.AccessToken
+
+	//client := config.NewClient("GITHUB_ACCESS_TOKEN")
+	client := github.NewClient(nil)
+
+	// create context for api call
+	ctx := context.Background()
+
+	//retrieve file contents
+	fileContent, _, _, err := client.Repositories.GetContents(ctx, repoOwner, repoName, filePath, nil)
+	if err != nil {
+		return err
+	}
+
+	// print contents
+	content, err := fileContent.GetContent()
+	if err != nil {
+		return err
+	}
+	fmt.Println(content)
+
+	return nil
+
 }
 
 func init() {

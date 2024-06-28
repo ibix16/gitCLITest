@@ -1,7 +1,11 @@
 package config
 
 import (
+	"context"
+
+	"github.com/google/go-github/github"
 	"github.com/spf13/viper"
+	"golang.org/x/oauth2"
 )
 
 type GithubConfig struct {
@@ -32,4 +36,17 @@ func LoadGithubConfig() error {
 
 func GetGithubConfig() *GithubConfig {
 	return githubConfig
+}
+
+type Client struct {
+	*github.Client
+}
+
+func NewClient(aT string) *Client {
+	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: aT})
+	tc := oauth2.NewClient(ctx, ts)
+
+	client := github.NewClient(tc)
+	return &Client{client}
 }
