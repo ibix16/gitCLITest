@@ -42,9 +42,9 @@ type Client struct {
 	*github.Client
 }
 
-func NewClient(aT string) *Client {
+func NewClient() *Client {
 	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: aT})
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "GITHUB_ACCESS_TOKEN"})
 	tc := oauth2.NewClient(ctx, ts)
 
 	client := github.NewClient(tc)
