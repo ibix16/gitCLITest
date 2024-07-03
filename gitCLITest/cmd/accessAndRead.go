@@ -9,9 +9,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v62/github"
 	"github.com/spf13/cobra"
-	"golang.org/x/oauth2"
 )
 
 // accessAndReadCmd represents the accessAndRead command
@@ -37,12 +36,11 @@ var accessAndReadCmd = &cobra.Command{
 }
 
 func accessAndRead(repoOwner, repoName, filePath string) error {
+
+	//create client
 	accessToken := os.Getenv("GITHUB_ACCESS_TOKEN")
 	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
-	tc := oauth2.NewClient(ctx, ts)
-
-	client := github.NewClient(tc)
+	client := github.NewClient(nil).WithAuthToken(accessToken)
 
 	//retrieve file contents
 	fileContent, _, _, err := client.Repositories.GetContents(ctx, repoOwner, repoName, filePath, nil)
@@ -59,14 +57,4 @@ func accessAndRead(repoOwner, repoName, filePath string) error {
 
 	return nil
 
-}
-
-func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// accessAndReadCmd.PersistentFlags().String("foo", "", "A help for foo")
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// accessAndReadCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

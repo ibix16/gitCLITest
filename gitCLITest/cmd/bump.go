@@ -26,11 +26,10 @@ var (
 // bumpCmd represents the bump command
 var bumpCmd = &cobra.Command{
 	Use:   "bump",
-	Short: "This command is responsible for accessing the VERSION_NUMBER file and incrementing the version number by 1. Returns the updated version number",
+	Short: "This command is responsible for accessing the VERSION_NUMBER file and incrementing the version number by 1.",
 	Long: `This command is responsible for accessing the 
 	VERSION_NUMBER file and incrementing the version number by 1. 
-	Commits changes and raises PR.
-	Returns the updated version number.`,
+	Commits changes and raises PR.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 
@@ -95,11 +94,6 @@ func bump(owner, repo, filePath string) error {
 
 	//validate tree sha
 	newTreeSHA := tree.GetSHA()
-	// if len(newTreeSHA) != 40 || !isHex(newTreeSHA) {
-	// 	fmt.Println(newTreeSHA)
-	// 	return fmt.Errorf("invalid tree sha: %s", newTreeSHA)
-	// }
-
 
 
 	// create new commit
@@ -121,10 +115,6 @@ func bump(owner, repo, filePath string) error {
 	newCommitSHA := newCommit.GetSHA()
 
 
-	// if len(newCommitSHA) != 40 || !isHex(newCommitSHA) {
-	// 	return fmt.Errorf("invalid sha: %s", newCommitSHA)
-	// }
-
 	// update branch reference
 	ref.Object.SHA = github.String(newCommitSHA)
 
@@ -133,10 +123,9 @@ func bump(owner, repo, filePath string) error {
 	if err != nil {
 		return fmt.Errorf("error updating ref %s", err)
 	}
+
 	
 	// create pull request
-
-
     base := "main"
     head := fmt.Sprintf("%s:%s", ownerT, targetBranchT)
     title := fmt.Sprintf("Version bump to %s", updatedString)
