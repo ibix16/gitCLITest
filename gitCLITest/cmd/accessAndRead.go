@@ -7,10 +7,11 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 
-	//"github.com/ibix16/gitCLITest/config"
 	"github.com/google/go-github/github"
 	"github.com/spf13/cobra"
+	"golang.org/x/oauth2"
 )
 
 // accessAndReadCmd represents the accessAndRead command
@@ -36,16 +37,12 @@ var accessAndReadCmd = &cobra.Command{
 }
 
 func accessAndRead(repoOwner, repoName, filePath string) error {
-	// Get the GitHub configuration
-	//githubConfig := config.GetGithubConfig()
-
-	//githubConfig.AccessToken
-
-	//client := config.NewClient("GITHUB_ACCESS_TOKEN")
-	client := github.NewClient(nil)
-
-	// create context for api call
+	accessToken := os.Getenv("GITHUB_ACCESS_TOKEN")
 	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
+	tc := oauth2.NewClient(ctx, ts)
+
+	client := github.NewClient(tc)
 
 	//retrieve file contents
 	fileContent, _, _, err := client.Repositories.GetContents(ctx, repoOwner, repoName, filePath, nil)

@@ -6,8 +6,21 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
 
+	"github.com/google/go-github/v62/github"
 	"github.com/spf13/cobra"
+)
+
+var (
+	targetBranchT  = "version-update"
+	commitMessageT = "Bump version number to %s"
+	ownerT         = "ibix16"
+	repoT          = "tester"
+	filePathT      = "/VERSION_NUMBER"
 )
 
 // bumpCmd represents the bump command
@@ -16,46 +29,143 @@ var bumpCmd = &cobra.Command{
 	Short: "This command is responsible for accessing the VERSION_NUMBER file and incrementing the version number by 1. Returns the updated version number",
 	Long: `This command is responsible for accessing the 
 	VERSION_NUMBER file and incrementing the version number by 1. 
+	Commits changes and raises PR.
 	Returns the updated version number.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		owner := "ibix16"
-		repo := "tester"
-		filePath := "VERSION_NUMBER"
 
-		err := bump(owner, repo, filePath)
-
+		err := bump(ownerT, repoT, filePathT)
 		if err != nil {
-			fmt.Println(err)
-			return
+		 log.Fatal("err", err)
 		}
+
 	},
 }
 
-// cmd to bump version number
 func bump(owner, repo, filePath string) error {
-	// Get the current file content
-	content, err := getFileContents(owner, repo, filePath)
+	// create client
+	accessToken := os.Getenv("GITHUB_ACCESS_TOKEN")
+	ctx := context.Background()
+	client := github.NewClient(nil).WithAuthToken(accessToken)
+
+	// get file contents
+	fileContent, err := getFileContents(owner, repo, filePath)
 	if err != nil {
-		return err
+		fmt.Errorf("invalid version number format: %s", fileContent)
+	}
+	// returns string "v0.5.6"
+
+	// split retured string v0.0.0
+	parts := strings.Split(fileContent, ".")
+	if len(parts) != 3 {
+		fmt.Errorf("invalid version number format: %s", fileContent)
+	}
+	// parts[0] holds the major value : v0
+	// parts[1] holds the minor value : 5
+	// parts[2] holds the patch value : 6
+
+	// increment patch value
+	numstr := parts[2]
+	trimmedValue := strings.TrimSpace(numstr)
+	convertedValue, err := strconv.Atoi(trimmedValue)
+	if err != nil {
+		fmt.Print(err)
+	}
+	convertedValue++
+
+	// concatenate string back together correctly bumps version from "v0.5.6" to "v0.5.7"
+	updatedString := fmt.Sprintf("%s.%s.%d", parts[0], parts[1], convertedValue)
+
+
+
+	// get latest commit sha
+	ref, _, err := client.Git.GetRef(ctx, ownerT, repoT, "heads/"+targetBranchT)
+	if err != nil {
+		return fmt.Errorf("error getting ref %s", err)
+	}
+	latestCommitSha := ref.Object.GetSHA()
+
+	entries := []*github.TreeEntry{}
+	entries = append(entries, &github.TreeEntry{Path: github.String(strings.TrimPrefix(filePath, "/")), Type: github.String("blob"), Content: github.String(string(updatedString)), Mode: github.String("100644")})
+	tree, _, err := client.Git.CreateTree(ctx,ownerT, repoT, *ref.Object.SHA, entries)
+	if err != nil {
+		return fmt.Errorf("creating tree %s", err)
 	}
 
-	// Increment the version number
-	updatedContent := incrementVersionNumber(content)
 
-	// Print or process the updated content
-	fmt.Println(updatedContent)
+	//validate tree sha
+	newTreeSHA := tree.GetSHA()
+	// if len(newTreeSHA) != 40 || !isHex(newTreeSHA) {
+	// 	fmt.Println(newTreeSHA)
+	// 	return fmt.Errorf("invalid tree sha: %s", newTreeSHA)
+	// }
 
-	return nil
+
+
+	// create new commit
+	author := &github.CommitAuthor{
+		Name:  github.String("ibix16"),
+		Email: github.String("ibixrivera16@gmail.com"),
+	}
+	commit := &github.Commit{
+		Message: github.String(fmt.Sprintf(commitMessageT, updatedString)),
+		Tree:    &github.Tree{SHA: github.String(newTreeSHA)},
+		Author:  author,
+		Parents: []*github.Commit{{SHA: github.String(latestCommitSha)}},
+	}
+	commitOP := &github.CreateCommitOptions{}
+	newCommit, _, err := client.Git.CreateCommit(ctx, ownerT, repoT, commit, commitOP)
+	if err != nil {
+		return fmt.Errorf("creating commit %s", err)
+	}
+	newCommitSHA := newCommit.GetSHA()
+
+
+	// if len(newCommitSHA) != 40 || !isHex(newCommitSHA) {
+	// 	return fmt.Errorf("invalid sha: %s", newCommitSHA)
+	// }
+
+	// update branch reference
+	ref.Object.SHA = github.String(newCommitSHA)
+
+
+	_, _, err = client.Git.UpdateRef(ctx, ownerT, repoT, ref, false)
+	if err != nil {
+		return fmt.Errorf("error updating ref %s", err)
+	}
+	
+	// create pull request
+
+
+    base := "main"
+    head := fmt.Sprintf("%s:%s", ownerT, targetBranchT)
+    title := fmt.Sprintf("Version bump to %s", updatedString)
+    body := "This pull request bumps the version number."
+
+    newPR := &github.NewPullRequest{
+        Title: &title,
+        Head:  &head,
+        Base:  &base,
+        Body:  &body,
+    }
+
+	pr, _, err := client.PullRequests.Create(ctx, owner, repo, newPR)
+    if err != nil {
+        return err
+    }
+
+
+	log.Printf("Pull request created: %s\n", pr.GetHTMLURL())
+	return err
 
 }
 
 // gets file content via api
 func getFileContents(repoOwner, repoName, filePath string) (string, error) {
-	//client := GitHubConfig.NewClient()
-
-	// create context for api call
+	accessToken := os.Getenv("GITHUB_ACCESS_TOKEN")
 	ctx := context.Background()
+
+	client := github.NewClient(nil).WithAuthToken(accessToken)
 
 	//retrieve file contents
 	fileContent, _, _, err := client.Repositories.GetContents(ctx, repoOwner, repoName, filePath, nil)
@@ -63,7 +173,6 @@ func getFileContents(repoOwner, repoName, filePath string) (string, error) {
 		fmt.Print(err)
 	}
 
-	// print contents
 	content, err := fileContent.GetContent()
 	if err != nil {
 		fmt.Print(err)
@@ -72,37 +181,3 @@ func getFileContents(repoOwner, repoName, filePath string) (string, error) {
 	return content, nil
 }
 
-// parses version number
-// isolates patch version by searching for last digit seperated by .
-// increments isolated variable
-// rejoines string + returns string
-func incrementVersionNumber(content string) string {
-	// Parse the version number from the content
-	//parts := strings.Split(content, ".")
-	//versionPart, _ := strconv.Atoi(parts[len(parts)-1])
-
-	// Increment the version number
-	//versionPart = versionPart + 2
-
-	// Reconstruct the updated content
-	//parts[len(parts)-1] = strconv.Itoa(versionPart)
-	//updatedContent := strings.Join(parts, ".")
-
-	//testVar := strconv.Itoa(versionPart)
-	return content
-	//updatedContent
-}
-
-func init() {
-	rootCmd.AddCommand(bumpCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// bumpCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// bumpCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
